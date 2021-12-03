@@ -22,4 +22,5 @@
     driver = webdriver.Chrome(executable_path=r'chromedriver', options=options)
    ```
 3. 初始化，传入 driver `xc = XC(driver)`
-4. 在出现验证码的地方执行自动划验证码方法即可。`xc.do_captcha()`, 若划动不成功，方法会自动刷新验证码重新自动划动。
+4. 在出现验证码的地方执行自动划验证码方法即可。`xc.do_captcha()`, 若划动不成功，方法会等待20s自动刷新验证码重新自动划动。
+5. 注意：系统缩放和浏览器缩放都需要是 100%。验证码需要显示出来才能执行成功。

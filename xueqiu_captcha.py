@@ -4,7 +4,7 @@ import time
 import random
 from io import BytesIO
 from PIL import Image
-import logger
+from logger import Logger
 from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.by import By
@@ -18,16 +18,15 @@ BORDER = 6
 class Crawler():
     def __init__(self, driver, logname='log/xueqiu.log') -> None:
         self.driver = driver
-        self.wait = WebDriverWait(self.driver, 20)
-        self.logger = logger.Logger(filename=logname, level='DEBUG').loggerImp()
+        self.wait = WebDriverWait(self.driver, 10)
+        self.logger = Logger(filename=logname, level='DEBUG').loggerImp()
 
-    def do_captcha(self):
+    def do_captcha(self, refresh_times=1):
         du = DragUtil(self.driver, self.logger)
 
         try:
             # 确认图片加载完成
             self.wait_pic()
-            time.sleep(2)
             # 获取滑块
             slider = self.get_slider()
             # 获取带缺口验证码图片
@@ -41,24 +40,34 @@ class Crawler():
             # 减去缺口位移
             gap -= BORDER
             du.simulateDragX(slider, gap)
-            success = self.wait.until(
+
+            WebDriverWait(self.driver, 2).until(
                 EC.visibility_of(self.driver.find_element(By.CLASS_NAME, 'geetest_panel_success'))
             )
             self.logger.info('验证成功')
+            self.closelogger()
             time.sleep(1)
         except Exception as e:
-            self.logger.error('失败，再来一次')
-            self.logger.error(e)
-            time.sleep(1)
+            self.logger.error('失败，再来一次，第 {} 次尝试'.format(refresh_times))
+            self.logger.error(str(e))
             self.refresh()
-            time.sleep(1)
-            self.do_captcha()
+            self.do_captcha(refresh_times+1)
 
     def refresh(self,):
-        self.logger.info('刷新验证码')
-        r = self.driver.find_element(By.CLASS_NAME, 'geetest_panel_error_content')
-        ActionChains(self.driver).move_to_element(r).click(r).perform()
-        self.logger.info('验证码刷新成功')
+        try:
+            self.logger.info('刷新验证码')
+            r = self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'geetest_panel_error_content')))
+            ActionChains(self.driver).move_to_element(r).click(r).perform()
+            self.logger.info('验证码刷新成功')
+        except Exception as e:
+            try:
+                self.logger.info('验证码刷新失败，点击刷新')
+                r = self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'geetest_refresh_1')))
+                ActionChains(self.driver).move_to_element(r).click(r).perform()
+                self.logger.error(str(e))
+            except Exception as e:
+                self.logger.info('点击刷新失败')
+                self.logger.error(str(e))
 
     def get_position(self):
         """
@@ -155,6 +164,12 @@ class Crawler():
         '''
         self.logger.info('等待加载图片')
         self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'geetest_canvas_img')))
+
+    def closelogger(self):
+        handlers = self.logger.handlers[:]
+        for handler in handlers:
+            handler.close()
+            self.logger.removeHandler(handler)
         
 
 
