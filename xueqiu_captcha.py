@@ -4,6 +4,7 @@ import time
 import random
 from io import BytesIO
 from PIL import Image
+import logger
 from selenium import webdriver
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
 from selenium.webdriver.common.by import By
@@ -15,21 +16,15 @@ from selenium.webdriver.support import expected_conditions as EC
 BORDER = 6
 
 class Crawler():
-    def __init__(self, driver) -> None:
+    def __init__(self, driver, logname='log/xueqiu.log') -> None:
         self.driver = driver
         self.wait = WebDriverWait(self.driver, 20)
+        self.logger = logger.Logger(filename=logname, level='DEBUG').loggerImp()
 
     def do_captcha(self):
-        du = DragUtil(self.driver)
+        du = DragUtil(self.driver, self.logger)
 
         try:
-            # 点击验证按钮
-            # s_button = self.change_to_slide()
-            # time.sleep(1)
-            # s_button.click()
-            # button = self.get_geetest_button()
-            # button.click()
-            time.sleep(1)
             # 确认图片加载完成
             self.wait_pic()
             time.sleep(2)
@@ -43,42 +38,27 @@ class Crawler():
             #self.delete_style_test()
             # 获取缺口位置
             gap = self.get_gap(image2, image1)
-            print('缺口位置', gap)
             # 减去缺口位移
             gap -= BORDER
-            # 获取移动轨迹
-            # track = self.get_track(gap)
-            # print('滑动轨迹', track)
-            # time.sleep(1)
-            # # 拖动滑块
-            # self.move_to_gap(slider, track)
-
             du.simulateDragX(slider, gap)
             success = self.wait.until(
                 EC.visibility_of(self.driver.find_element(By.CLASS_NAME, 'geetest_panel_success'))
             )
-            print(success.text)
+            self.logger.info('验证成功')
             time.sleep(1)
         except Exception as e:
-            print('失败，再来一次')
-            print(e)
+            self.logger.error('失败，再来一次')
+            self.logger.error(e)
             time.sleep(1)
             self.refresh()
             time.sleep(1)
             self.do_captcha()
 
     def refresh(self,):
+        self.logger.info('刷新验证码')
         r = self.driver.find_element(By.CLASS_NAME, 'geetest_panel_error_content')
         ActionChains(self.driver).move_to_element(r).click(r).perform()
-
-    def get_geetest_button(self):
-        """
-        获取初始验证按钮
-        :return:
-        """
-        # 验证按钮
-        button = self.wait.until(EC.element_to_be_clickable((By.CLASS_NAME, 'geetest_radar_tip')))
-        return button
+        self.logger.info('验证码刷新成功')
 
     def get_position(self):
         """
@@ -86,7 +66,6 @@ class Crawler():
         :return: 验证码位置元组
         """
         img = self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'geetest_canvas_img')))
-        print('img')
         location = img.location
         size = img.size
         top, bottom, left, right = location['y'], location['y'] + size['height'], location['x'], location['x'] + size[
@@ -118,7 +97,7 @@ class Crawler():
         :return: 图片对象
         """
         top, bottom, left, right = self.get_position()
-        print('验证码位置', top, bottom, left, right)
+        self.logger.info(('获得验证码位置: ', top, bottom, left, right))
         screenshot = self.get_screenshot()
         captcha = screenshot.crop((left, top, right, bottom))
         captcha.save(name)
@@ -131,16 +110,6 @@ class Crawler():
         '''
         js = 'document.querySelectorAll("canvas")[2].style=""'
         self.driver.execute_script(js)
-
-    def change_to_slide(self):
-        '''
-        切换为滑动认证
-        :return 滑动选项对象
-        '''
-        huadong = self.wait.until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR,'.products-content ul > li:nth-child(2)'))
-        )
-        return huadong
 
     def get_gap(self, image1, image2):
         """
@@ -157,6 +126,7 @@ class Crawler():
                 if not self.is_pixel_equal(image1, image2, i, j):
                     left = i
                     return left
+        self.logger.info('获得偏移量: {}'.format(left))
         return left
 
     def is_pixel_equal(self, image1, image2, x, y):
@@ -178,71 +148,20 @@ class Crawler():
         else:
             return False
 
-    def get_track(self, distance):
-        """
-        根据偏移量获取移动轨迹
-        :param distance: 偏移量
-        :return: 移动轨迹
-        """
-        # 移动轨迹
-        track = []
-        # 当前位移
-        current = 0
-        # 减速阈值
-        mid = distance * 4 / 5
-        # 计算间隔
-        t = 0.2
-        # 初速度
-        v = 0
-        while current < distance:
-            if current < mid:
-                # 加速度为正2
-                a = 5
-            else:
-                # 加速度为负3
-                a = -1
-            # 初速度v0
-            v0 = v
-            # 当前速度v = v0 + at
-            v = v0 + a * t
-            # 移动距离x = v0t + 1/2 * a * t^2
-            move = v0 * t + 1 / 2 * a * t * t
-            # 当前位移
-            current += move
-            # 加入轨迹
-            track.append(round(move))
-        return track
-
-    def move_to_gap(self, slider, track):
-        """
-        拖动滑块到缺口处
-        :param slider: 滑块
-        :param track: 轨迹
-        :return:
-        """
-        ActionChains(self.driver).click_and_hold(slider).perform()
-        for x in track:
-            ActionChains(self.driver).move_by_offset(xoffset=x, yoffset=0).perform()
-        time.sleep(0.5)
-        ActionChains(self.driver).release().perform()
-
     def wait_pic(self):
         '''
         等待验证图片加载完成
         :return None
         '''
-        # self.wait.until(
-        #     # EC.presence_of_element_located((By.CSS_SELECTOR,'.geetest_popup_wrap'))
-        #     EC.presence_of_element_located((By.CSS_SELECTOR,'geetest_canvas_img'))
-        # )
+        self.logger.info('等待加载图片')
         self.wait.until(EC.presence_of_element_located((By.CLASS_NAME, 'geetest_canvas_img')))
-        # WebDriverWait(self.driver, 20).until(EC.element_to_be_clickable(
-        #     (By.XPATH, '//div[@class="ui-tab-control"]/ul/li[3]'))).click()
+        
 
 
 class DragUtil():
-    def __init__(self, driver):
+    def __init__(self, driver, logger):
         self.driver = driver
+        self.logger = logger
 
     def __getRadomPauseScondes(self):
         """
@@ -258,6 +177,7 @@ class DragUtil():
         :param targetOffsetX: 拖拽目标x轴距离
         :return: None
         """
+        self.logger.info('开始拖动滑块')
         action_chains = webdriver.ActionChains(self.driver)
         # 点击，准备拖拽
         action_chains.click_and_hold(source)
@@ -295,11 +215,14 @@ class DragUtil():
             action_chains.pause(self.__getRadomPauseScondes())
 
         else:
+            self.logger.error('滑块拖动出现问题')
             raise Exception("莫不是系统出现了问题？!")
 
         # 参考action_chains.drag_and_drop_by_offset()
         action_chains.release()
         action_chains.perform()
+        self.logger.info('滑块拖动完成')
+
 
     def simpleSimulateDragX(self, source, targetOffsetX):
         """
