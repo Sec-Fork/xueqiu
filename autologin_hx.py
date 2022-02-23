@@ -3,7 +3,7 @@
 '''
 Author: harry lu
 Date: 2022-02-21 23:46:08
-LastEditTime: 2022-02-22 17:21:03
+LastEditTime: 2022-02-23 10:03:29
 LastEditors: harry lu
 Description: 自动登录网站
 FilePath: /xueqiu/autologin_hx.py
@@ -30,6 +30,7 @@ class Fxcpiital:
     def __init__(self) -> None:
         self.url = "http://admin.hxcapital.cn/"
         self.ocr = ddddocr.DdddOcr(show_ad=False)
+        self.verifyCode_times = 10 # 验证码判断失败次数
         self.init_browser()
 
         logger.add("autologin_hx.log")
@@ -72,6 +73,9 @@ class Fxcpiital:
         logger.info("浏览器初始化成功")
 
     def autologin(self, username='lijun', passwd='qaz123456'):
+        """
+        执行自动登录操作, 一直循环直到登录成功
+        """
         try:
             while True:
                 self.open()
@@ -81,10 +85,10 @@ class Fxcpiital:
                     logger.info("登录成功")
                     break
                 logger.info("登录失败")
-                time.sleep(1)
+                time.sleep(2)
         except Exception as e:
             logger.error(str(e))
-        time.sleep(100)
+        time.sleep(100) # 暂停
 
     def open(self):
         """
@@ -102,18 +106,15 @@ class Fxcpiital:
         填入用户名和密码和验证码
         """
         self.wait.until(EC.presence_of_element_located((By.NAME, 'username'))).send_keys(username)
-        self.wait.until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(username)
+        self.wait.until(EC.presence_of_element_located((By.NAME, 'password'))).send_keys(passwd)
         self.wait.until(EC.presence_of_element_located((By.NAME, 'verifyCode'))).send_keys(self.get_code())
-        # self.browser.find_element(By.NAME, 'username').send_keys(username)
-        # self.browser.find_element(By.NAME, 'password').send_keys(passwd)
-        # self.browser.find_element(By.NAME, 'verifyCode').send_keys(self.get_code())
 
 
     def get_code(self):
         """
-        获取图片验证码结果
+        获取图片验证码结果，共判断十次
         """
-        i = 10
+        i = self.verifyCode_times
         while (i):
             i = i-1
             self.wait.until(EC.presence_of_element_located((By.ID, 's-canvas')))
@@ -130,7 +131,7 @@ class Fxcpiital:
             res = self.ocr.classification(imgByteArr.getvalue())
             if len(res) != 4:
                 self.refresh_code()
-            res = res + '1'
+            # res = res + '1'
             return res
         logger.info("验证码识别失败")
         return '0000'
@@ -141,7 +142,7 @@ class Fxcpiital:
         """
         code_ele = self.browser.find_element(By.ID, 's-canvas')
         ActionChains(self.browser).move_to_element(code_ele).click(code_ele).perform()
-        time.sleep(1)
+        time.sleep(2)
 
     def is_login_success(self):
         """
