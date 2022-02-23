@@ -3,7 +3,7 @@
 '''
 Author: harry lu
 Date: 2022-02-21 23:46:08
-LastEditTime: 2022-02-23 10:03:29
+LastEditTime: 2022-02-23 10:10:02
 LastEditors: harry lu
 Description: 自动登录网站
 FilePath: /xueqiu/autologin_hx.py
@@ -31,9 +31,11 @@ class Fxcpiital:
         self.url = "http://admin.hxcapital.cn/"
         self.ocr = ddddocr.DdddOcr(show_ad=False)
         self.verifyCode_times = 10 # 验证码判断失败次数
-        self.init_browser()
+        self.chrome_exec_path = "./chromedriver" # chromedriver 路径
+        self.wait_driver_time = 5 # 等待网页元素时间
 
-        logger.add("autologin_hx.log")
+        self.init_browser()
+        logger.add("autologin_hx.log") # 初始化日志保存位置
 
     def init_browser(self):
         """初始化浏览器设置
@@ -67,9 +69,10 @@ class Fxcpiital:
                 'w3c': False, 
             },
             }
-        self.browser = webdriver.Chrome(executable_path="./chromedriver",options=options, desired_capabilities=caps)
+        
+        self.browser = webdriver.Chrome(executable_path=self.chrome_exec_path,options=options, desired_capabilities=caps)
         self.browser.maximize_window() # 最大化浏览器
-        self.wait = WebDriverWait(self.browser, 5)
+        self.wait = WebDriverWait(self.browser, self.wait_driver_time)
         logger.info("浏览器初始化成功")
 
     def autologin(self, username='lijun', passwd='qaz123456'):
